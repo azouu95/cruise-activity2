@@ -8,7 +8,7 @@ import Leaderboard from './Leaderboard.jsx';
 // Remplace par ton Application ID Discord
 const CLIENT_ID   = import.meta.env.VITE_DISCORD_CLIENT_ID || 'TON_APP_ID_ICI';
 // URL de ton API bot (ton IP Katabump + port)
-const API_URL     = import.meta.env.VITE_API_URL || 'http://51.83.6.68:20106';
+const API_URL     = '';  // Proxy Vercel — chemins relatifs
 
 const discordSdk = new DiscordSDK(CLIENT_ID);
 
@@ -44,7 +44,7 @@ export default function App() {
         });
 
         // Échanger le code contre un token via notre API
-        const tokenRes = await fetch(`${API_URL}/activity/token`, {
+        const tokenRes = await fetch('/api/token', {
           method : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body   : JSON.stringify({ code }),
@@ -77,7 +77,7 @@ export default function App() {
   const loadGameData = useCallback(async (userId) => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/activity/gamestate`);
+      const res = await fetch('/api/gamestate');
       if (!res.ok) throw new Error('API unavailable');
       const data = await res.json();
       setGameData(data);
