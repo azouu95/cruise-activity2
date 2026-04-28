@@ -1,520 +1,502 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  Line,
+  ZoomableGroup,
+} from "react-simple-maps";
 
-// ── Ports ────────────────────────────────────────────────────────────────────
+// ── Données géographiques (Natural Earth 110m) ────────────────────────────────
+const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+
+// ── Ports (coordonnées lon/lat réelles) ───────────────────────────────────────
 const PORTS = {
-  barcelone      : { x:0.265, y:0.345, label:'Barcelone',  major:true  },
-  genes          : { x:0.355, y:0.295, label:'Gênes',       major:true  },
-  marseille      : { x:0.310, y:0.320, label:'Marseille',   major:false },
-  civitavecchia  : { x:0.395, y:0.355, label:'Rome',        major:true  },
-  naples         : { x:0.415, y:0.390, label:'Naples',      major:false },
-  palma_majorque : { x:0.282, y:0.368, label:'Majorque',    major:false },
-  la_valette     : { x:0.472, y:0.430, label:'Malte',       major:false },
-  athenes_piree  : { x:0.555, y:0.405, label:'Athènes',     major:true  },
-  santorin       : { x:0.575, y:0.425, label:'Santorin',    major:false },
-  istanbul       : { x:0.625, y:0.355, label:'Istanbul',    major:true  },
-  venise         : { x:0.418, y:0.278, label:'Venise',      major:true  },
-  split          : { x:0.452, y:0.302, label:'Split',       major:false },
-  dubrovnik      : { x:0.462, y:0.338, label:'Dubrovnik',   major:false },
-  kotor          : { x:0.470, y:0.355, label:'Kotor',       major:false },
-  corfou         : { x:0.510, y:0.390, label:'Corfou',      major:false },
-  lisbonne       : { x:0.155, y:0.328, label:'Lisbonne',    major:true  },
-  funchal        : { x:0.110, y:0.415, label:'Madère',      major:false },
-  tenerife       : { x:0.088, y:0.495, label:'Tenerife',    major:false },
-  casablanca     : { x:0.192, y:0.455, label:'Casablanca',  major:false },
-  miami          : { x:0.218, y:0.498, label:'Miami',       major:true  },
-  nassau         : { x:0.242, y:0.520, label:'Nassau',      major:false },
-  cozumel        : { x:0.178, y:0.558, label:'Cozumel',     major:false },
-  ocho_rios      : { x:0.258, y:0.548, label:'Jamaïque',    major:false },
-  saint_martin   : { x:0.292, y:0.540, label:'St-Martin',   major:false },
-  pointe_pitre   : { x:0.305, y:0.558, label:'Guadeloupe',  major:false },
-  le_cap         : { x:0.448, y:0.785, label:'Le Cap',      major:false },
-  dubai          : { x:0.718, y:0.535, label:'Dubaï',       major:true  },
-  singapour      : { x:0.820, y:0.635, label:'Singapour',   major:true  },
-  hong_kong      : { x:0.868, y:0.498, label:'Hong Kong',   major:false },
+  barcelone     : { lon:  2.2, lat: 41.4, label: "Barcelone",  major: true  },
+  genes         : { lon:  8.9, lat: 44.4, label: "Gênes",       major: true  },
+  civitavecchia : { lon: 11.8, lat: 42.1, label: "Rome",        major: true  },
+  naples        : { lon: 14.3, lat: 40.8, label: "Naples",      major: false },
+  la_valette    : { lon: 14.5, lat: 35.9, label: "Malte",       major: false },
+  athenes_piree : { lon: 23.6, lat: 37.9, label: "Athènes",    major: true  },
+  santorin      : { lon: 25.4, lat: 36.4, label: "Santorin",   major: false },
+  istanbul      : { lon: 29.0, lat: 41.0, label: "Istanbul",   major: true  },
+  venise        : { lon: 12.3, lat: 45.4, label: "Venise",     major: true  },
+  dubrovnik     : { lon: 18.1, lat: 42.7, label: "Dubrovnik",  major: false },
+  lisbonne      : { lon: -9.1, lat: 38.7, label: "Lisbonne",   major: true  },
+  funchal       : { lon:-16.9, lat: 32.6, label: "Madère",     major: false },
+  tenerife      : { lon:-16.3, lat: 28.5, label: "Tenerife",   major: false },
+  casablanca    : { lon: -7.6, lat: 33.6, label: "Casablanca", major: false },
+  miami         : { lon:-80.2, lat: 25.8, label: "Miami",      major: true  },
+  nassau        : { lon:-77.4, lat: 25.1, label: "Nassau",     major: false },
+  cozumel       : { lon:-86.9, lat: 20.5, label: "Cozumel",    major: false },
+  le_cap        : { lon: 18.4, lat:-33.9, label: "Le Cap",     major: false },
+  dubai         : { lon: 55.3, lat: 25.2, label: "Dubaï",      major: true  },
+  singapour     : { lon:103.8, lat:  1.3, label: "Singapour",  major: true  },
+  hong_kong     : { lon:114.2, lat: 22.3, label: "Hong Kong",  major: false },
 };
 
-const ROUTE_COLORS = {
-  'Méditerranée': '#f59e0b',
-  'Adriatique'  : '#3b82f6',
-  'Caraïbes'    : '#10b981',
-  'Atlantique'  : '#6366f1',
-  'Asie'        : '#ef4444',
-  'Afrique'     : '#f97316',
+const ROUTES = [
+  { id:"atl",  ports:["lisbonne","tenerife","miami"],           color:"#7c3aed", label:"Atlantique"  },
+  { id:"med",  ports:["barcelone","civitavecchia","la_valette","athenes_piree"], color:"#d97706", label:"Méditerranée" },
+  { id:"adr",  ports:["venise","dubrovnik","santorin","athenes_piree"],          color:"#2563eb", label:"Adriatique"   },
+  { id:"ege",  ports:["athenes_piree","istanbul"],              color:"#16a34a", label:"Égée"        },
+  { id:"asie", ports:["dubai","singapour","hong_kong"],         color:"#dc2626", label:"Asie"        },
+  { id:"car",  ports:["miami","nassau","cozumel"],              color:"#0891b2", label:"Caraïbes"    },
+];
+
+const DEMO_SHIPS = [
+  { uid:"s1", nom:"La Belle Époque", flag:"🇫🇷", logo:"🌊", compNom:"Blue Ocean", isMe:true,  lon:8.0,  lat:43.2, route:"Méditerranée", next:"Rome",      voyages:12, sat:84 },
+  { uid:"s2", nom:"Adriatica",       flag:"🇮🇹", logo:"🔴", compNom:"Red Sea",   isMe:false, lon:15.5, lat:43.8, route:"Adriatique",   next:"Dubrovnik", voyages:8,  sat:78 },
+  { uid:"s3", nom:"Costa Brava",     flag:"🇪🇸", logo:"🟡", compNom:"Gold Lines",isMe:false, lon:24.5, lat:37.2, route:"Égée",          next:"Santorin",  voyages:5,  sat:91 },
+  { uid:"s4", nom:"Dubai Star",      flag:"🇦🇪", logo:"⭐", compNom:"Orient",    isMe:false, lon:80.0, lat:12.5, route:"Asie",          next:"Singapour", voyages:3,  sat:88 },
+];
+
+// ── Style géographies ─────────────────────────────────────────────────────────
+const geoStyle = {
+  default: {
+    fill: "url(#landGrad)",
+    stroke: "#4a8a30",
+    strokeWidth: 0.8,
+    outline: "none",
+  },
+  hover: {
+    fill: "#a0d070",
+    stroke: "#3a7020",
+    strokeWidth: 1,
+    outline: "none",
+  },
+  pressed: {
+    fill: "#90c060",
+    outline: "none",
+  },
 };
 
-// Continents
-const EU=[[0.16,0.19],[0.19,0.17],[0.23,0.16],[0.27,0.16],[0.30,0.155],[0.33,0.145],[0.37,0.145],[0.40,0.135],[0.44,0.13],[0.47,0.125],[0.50,0.12],[0.535,0.115],[0.565,0.12],[0.595,0.13],[0.625,0.145],[0.655,0.155],[0.675,0.165],[0.685,0.178],[0.678,0.198],[0.660,0.210],[0.638,0.222],[0.628,0.248],[0.618,0.268],[0.608,0.285],[0.595,0.300],[0.588,0.318],[0.575,0.332],[0.558,0.345],[0.538,0.358],[0.515,0.368],[0.498,0.382],[0.488,0.398],[0.472,0.408],[0.458,0.398],[0.442,0.385],[0.425,0.375],[0.408,0.360],[0.392,0.350],[0.375,0.342],[0.358,0.338],[0.342,0.328],[0.328,0.315],[0.312,0.305],[0.298,0.295],[0.285,0.290],[0.275,0.275],[0.270,0.258],[0.262,0.245],[0.252,0.232],[0.242,0.222],[0.230,0.210],[0.218,0.200],[0.208,0.192],[0.190,0.186],[0.172,0.185],[0.158,0.188],[0.152,0.195],[0.16,0.19]];
-const AF=[[0.195,0.422],[0.218,0.412],[0.240,0.408],[0.262,0.408],[0.282,0.418],[0.298,0.428],[0.315,0.440],[0.332,0.452],[0.348,0.462],[0.365,0.475],[0.378,0.492],[0.390,0.512],[0.398,0.535],[0.402,0.558],[0.402,0.582],[0.400,0.608],[0.395,0.635],[0.388,0.658],[0.378,0.682],[0.365,0.705],[0.350,0.725],[0.335,0.742],[0.318,0.755],[0.300,0.765],[0.282,0.768],[0.268,0.768],[0.252,0.762],[0.242,0.755],[0.435,0.755],[0.450,0.742],[0.462,0.725],[0.468,0.705],[0.470,0.682],[0.468,0.658],[0.462,0.632],[0.452,0.608],[0.440,0.582],[0.428,0.558],[0.418,0.532],[0.415,0.508],[0.420,0.485],[0.432,0.462],[0.448,0.448],[0.462,0.438],[0.475,0.432],[0.488,0.428],[0.498,0.420],[0.498,0.408],[0.488,0.400],[0.470,0.398],[0.452,0.402],[0.432,0.408],[0.412,0.412],[0.392,0.412],[0.372,0.408],[0.352,0.402],[0.332,0.412],[0.312,0.418],[0.295,0.418],[0.275,0.412],[0.255,0.415],[0.232,0.418],[0.212,0.420],[0.195,0.422]];
-const AS=[[0.625,0.145],[0.658,0.135],[0.688,0.125],[0.720,0.115],[0.755,0.108],[0.790,0.105],[0.828,0.108],[0.862,0.115],[0.892,0.125],[0.915,0.140],[0.935,0.155],[0.948,0.172],[0.955,0.190],[0.958,0.210],[0.955,0.232],[0.948,0.258],[0.938,0.280],[0.925,0.302],[0.910,0.322],[0.892,0.338],[0.875,0.352],[0.858,0.362],[0.840,0.368],[0.822,0.368],[0.805,0.362],[0.790,0.355],[0.775,0.345],[0.762,0.332],[0.748,0.318],[0.738,0.305],[0.725,0.290],[0.715,0.275],[0.705,0.260],[0.698,0.248],[0.690,0.232],[0.682,0.218],[0.675,0.205],[0.665,0.192],[0.655,0.180],[0.645,0.170],[0.635,0.160],[0.625,0.150],[0.625,0.145]];
-const AM=[[0.078,0.155],[0.100,0.150],[0.125,0.155],[0.148,0.162],[0.165,0.175],[0.178,0.190],[0.185,0.208],[0.185,0.228],[0.180,0.248],[0.170,0.265],[0.158,0.278],[0.142,0.285],[0.128,0.288],[0.115,0.285],[0.102,0.278],[0.092,0.268],[0.082,0.255],[0.075,0.240],[0.068,0.222],[0.065,0.205],[0.065,0.188],[0.068,0.172],[0.072,0.160],[0.078,0.155],[0.148,0.285],[0.162,0.298],[0.172,0.315],[0.178,0.338],[0.178,0.362],[0.172,0.385],[0.162,0.405],[0.150,0.422],[0.138,0.440],[0.130,0.458],[0.125,0.475],[0.125,0.495],[0.130,0.515],[0.138,0.532],[0.148,0.548],[0.158,0.568],[0.162,0.588],[0.162,0.608],[0.158,0.628],[0.148,0.645],[0.135,0.658],[0.120,0.668],[0.105,0.675],[0.092,0.675],[0.080,0.665],[0.070,0.652],[0.063,0.635],[0.062,0.615],[0.065,0.595],[0.072,0.578],[0.078,0.562]];
-const AU=[[0.840,0.620],[0.865,0.610],[0.888,0.605],[0.910,0.605],[0.930,0.612],[0.948,0.622],[0.960,0.638],[0.968,0.655],[0.970,0.672],[0.968,0.690],[0.960,0.705],[0.948,0.718],[0.932,0.725],[0.915,0.730],[0.898,0.730],[0.880,0.725],[0.865,0.715],[0.850,0.702],[0.838,0.688],[0.830,0.672],[0.828,0.655],[0.828,0.638],[0.832,0.625],[0.840,0.620]];
-
-export default function GameMap({ gameData, myCompany }) {
-  const canvasRef = useRef(null);
-  const animRef   = useRef(null);
-  const stateRef  = useRef({ ships:[], frame:0 });
-  const hovRef    = useRef(null);
-  const [tooltip, setTooltip]  = useState(null);
-  const [selected,setSelected] = useState(null);
-
-  const buildShips = useCallback(() => {
-    if (!gameData?.companies) return;
-    const ships = [];
-    for (const co of Object.values(gameData.companies)) {
-      for (const nav of (co.flotte||[])) {
-        if (!nav.routeActive) continue;
-        const route = gameData.routes?.find(r=>r.id===nav.routeActive);
-        const pts = route ? [route.hub_depart,...route.escales,route.hub_arrivee] : [];
-        const isMe = myCompany?.ownerId===co.ownerId;
-        const now=Date.now(), start=nav.routeAssignedAt||now-86400000;
-        const total=(route?.duree||7)*86400000;
-        const ratio=((now-start)%total)/total;
-        const segs=Math.max(1,pts.length-1);
-        const si=Math.min(Math.floor(ratio*segs),segs-1);
-        const sr=ratio*segs-si;
-        const pA=PORTS[pts[si]], pB=PORTS[pts[si+1]];
-        if(!pA) continue;
-        const x=pA.x+(pB?(pB.x-pA.x)*sr:0);
-        const y=pA.y+(pB?(pB.y-pA.y)*sr:0);
-        ships.push({
-          uid:nav.uid, nom:nav.nom, flag:nav.flag||'', logo:co.logo, compNom:co.nom,
-          isMe, x, y, displayX:x, displayY:y,
-          color:ROUTE_COLORS[route?.region]||'#f59e0b',
-          routeLabel:route?.label||'', portProchain:pB?PORTS[pts[si+1]]?.label:'Arrivée',
-          voyages:nav.voyages||0, satisfaction:nav.satisfactionMoyenne||70,
-          revenu:nav.revenusGeneres||0, pulse:Math.random()*Math.PI*2, wake:[],
-        });
-      }
-    }
-    stateRef.current.ships = ships;
-  }, [gameData, myCompany]);
-
-  useEffect(()=>{ buildShips(); },[buildShips]);
-
-  useEffect(()=>{
-    const canvas=canvasRef.current; if(!canvas) return;
-    const ctx=canvas.getContext('2d');
-    const resize=()=>{ canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; };
-    resize();
-    window.addEventListener('resize',resize);
-
-    // Pré-calcul texture papier (une seule fois)
-    const noiseCanvas=document.createElement('canvas');
-    noiseCanvas.width=256; noiseCanvas.height=256;
-    const nctx=noiseCanvas.getContext('2d');
-    const id=nctx.createImageData(256,256);
-    for(let i=0;i<id.data.length;i+=4){
-      const v=Math.random()*30;
-      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=18;
-    }
-    nctx.putImageData(id,0,0);
-
-    function drawLand(pts,fill,stroke,shadow){
-      const W=canvas.width,H=canvas.height;
-      if(!pts?.length) return;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0]*W,pts[0][1]*H);
-      // Courbes douces
-      for(let i=1;i<pts.length-1;i++){
-        const mx=(pts[i][0]+pts[i+1][0])/2*W;
-        const my=(pts[i][1]+pts[i+1][1])/2*H;
-        ctx.quadraticCurveTo(pts[i][0]*W,pts[i][1]*H,mx,my);
-      }
-      ctx.closePath();
-      if(shadow){ ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=8; ctx.shadowOffsetX=3; ctx.shadowOffsetY=3; }
-      ctx.fillStyle=fill; ctx.fill();
-      ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-      ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke();
-    }
-
-    function drawCompass(cx,cy,r){
-      // Fond
-      ctx.save();
-      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-      bg.addColorStop(0,'rgba(255,248,220,0.95)');
-      bg.addColorStop(0.7,'rgba(240,220,160,0.9)');
-      bg.addColorStop(1,'rgba(200,170,100,0.8)');
-      ctx.fillStyle=bg;
-      ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='#8B6914'; ctx.lineWidth=2; ctx.stroke();
-      // Cercle intérieur
-      ctx.beginPath(); ctx.arc(cx,cy,r*0.7,0,Math.PI*2);
-      ctx.strokeStyle='rgba(139,105,20,0.4)'; ctx.lineWidth=0.8; ctx.stroke();
-      // Aiguilles
-      const dirs=[0,Math.PI/2,Math.PI,Math.PI*1.5];
-      const labels=['N','E','S','O'];
-      dirs.forEach((a,i)=>{
-        const isN=i===0;
-        ctx.save(); ctx.translate(cx,cy); ctx.rotate(a);
-        ctx.fillStyle=isN?'#c0392b':'#8B6914';
-        ctx.beginPath();
-        ctx.moveTo(0,-r*0.85); ctx.lineTo(-r*0.12,0); ctx.lineTo(0,-r*0.2);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle='rgba(139,105,20,0.5)';
-        ctx.beginPath();
-        ctx.moveTo(0,r*0.85); ctx.lineTo(r*0.12,0); ctx.lineTo(0,r*0.2);
-        ctx.closePath(); ctx.fill();
-        ctx.restore();
-        // Labels
-        const lx=cx+Math.sin(a)*r*0.95, ly=cy-Math.cos(a)*r*0.95;
-        ctx.fillStyle=isN?'#c0392b':'#5d4e37';
-        ctx.font=`bold ${r*0.25}px Georgia,serif`;
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(labels[i],lx,ly);
-      });
-      // Point central
-      ctx.beginPath(); ctx.arc(cx,cy,r*0.08,0,Math.PI*2);
-      ctx.fillStyle='#8B6914'; ctx.fill();
-      ctx.restore();
-    }
-
-    function draw(){
-      const W=canvas.width,H=canvas.height,{ships,frame}=stateRef.current;
-      ctx.clearRect(0,0,W,H);
-
-      // ── OCÉAN CARTOON ──
-      // Dégradé chaud style carte illustrée
-      const ocean=ctx.createLinearGradient(0,0,W,H);
-      ocean.addColorStop(0,  '#1a6b9e');
-      ocean.addColorStop(0.3,'#1e7ab8');
-      ocean.addColorStop(0.6,'#1668a0');
-      ocean.addColorStop(1,  '#124f7a');
-      ctx.fillStyle=ocean; ctx.fillRect(0,0,W,H);
-
-      // Reflets lumineux océan
-      const shine=ctx.createRadialGradient(W*0.3,H*0.25,0,W*0.3,H*0.25,W*0.4);
-      shine.addColorStop(0,'rgba(100,200,255,0.12)');
-      shine.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=shine; ctx.fillRect(0,0,W,H);
-
-      // Vagues cartoon (lignes courbes)
-      ctx.save();
-      for(let row=0;row<12;row++){
-        const baseY=H*(0.08+row*0.08);
-        const alpha=0.06+Math.sin(frame*0.008+row)*0.02;
-        ctx.strokeStyle=`rgba(255,255,255,${alpha})`;
-        ctx.lineWidth=1.2;
-        ctx.beginPath();
-        for(let x=0;x<=W;x+=W/20){
-          const wx=x+Math.sin(frame*0.005+row*0.8+x*0.01)*8;
-          const wy=baseY+Math.sin(x*0.025+frame*0.006+row*1.2)*6;
-          x===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy);
-        }
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // Texture papier sur l'océan
-      ctx.globalAlpha=0.4;
-      const pat=ctx.createPattern(noiseCanvas,'repeat');
-      ctx.fillStyle=pat; ctx.fillRect(0,0,W,H);
-      ctx.globalAlpha=1;
-
-      // ── CONTINENTS CARTOON ──
-      // Style : formes douces, couleurs chaudes, ombres portées
-
-      // Ombres portées des continents
-      ctx.shadowColor='rgba(0,0,0,0.5)';
-      ctx.shadowBlur=12; ctx.shadowOffsetX=4; ctx.shadowOffsetY=4;
-      const drawShadow=(pts)=>{
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0]*W,pts[0][1]*H);
-        for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0]*W,pts[i][1]*H);
-        ctx.closePath();
-        ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fill();
-      };
-      [AF,AM,AS,AU,EU].forEach(drawShadow);
-      ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-
-      // Afrique — ocre chaud
-      drawLand(AF,
-        (() => { const g=ctx.createLinearGradient(0.3*W,0.4*H,0.5*W,0.8*H); g.addColorStop(0,'#c8a85c'); g.addColorStop(1,'#b8923e'); return g; })(),
-        '#8B6914', false);
-      // Amériques — vert forêt
-      drawLand(AM,
-        (() => { const g=ctx.createLinearGradient(0.1*W,0.15*H,0.18*W,0.7*H); g.addColorStop(0,'#5a9e52'); g.addColorStop(1,'#4a8642'); return g; })(),
-        '#2d6b2a', false);
-      // Asie — vert sauge
-      drawLand(AS,
-        (() => { const g=ctx.createLinearGradient(0.62*W,0.1*H,0.96*W,0.37*H); g.addColorStop(0,'#7ab87a'); g.addColorStop(1,'#5a9858'); return g; })(),
-        '#3a7838', false);
-      // Australie — ocre rouge
-      drawLand(AU,
-        (() => { const g=ctx.createLinearGradient(0.83*W,0.61*H,0.97*W,0.73*H); g.addColorStop(0,'#d4925a'); g.addColorStop(1,'#c07840'); return g; })(),
-        '#8B4513', false);
-      // Europe — vert prairie (en dernier, au-dessus)
-      drawLand(EU,
-        (() => { const g=ctx.createLinearGradient(0.15*W,0.12*H,0.68*W,0.42*H); g.addColorStop(0,'#8ac46e'); g.addColorStop(0.5,'#72b05a'); g.addColorStop(1,'#5a9648'); return g; })(),
-        '#3d7030', true);
-
-      // Texture grain sur les continents
-      ctx.globalAlpha=0.06;
-      ctx.fillStyle=ctx.createPattern(noiseCanvas,'repeat');
-      ctx.fillRect(0,0,W,H);
-      ctx.globalAlpha=1;
-
-      // ── ROUTES ──
-      if(gameData?.companies){
-        const drawn=new Set();
-        for(const co of Object.values(gameData.companies)){
-          for(const nav of (co.flotte||[])){
-            if(!nav.routeActive||drawn.has(nav.routeActive)) continue;
-            drawn.add(nav.routeActive);
-            const route=gameData.routes?.find(r=>r.id===nav.routeActive);
-            if(!route) continue;
-            const plist=[route.hub_depart,...route.escales,route.hub_arrivee];
-            const col=ROUTE_COLORS[route.region]||'#f59e0b';
-            // Ombre route
-            ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=3;
-            ctx.setLineDash([6,10]);
-            ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=3;
-            ctx.beginPath(); let f=true;
-            for(const pid of plist){const p=PORTS[pid];if(!p) continue;if(f){ctx.moveTo(p.x*W,p.y*H);f=false;}else ctx.lineTo(p.x*W,p.y*H);}
-            ctx.stroke();
-            // Route colorée
-            ctx.strokeStyle=col+'dd'; ctx.lineWidth=2.2;
-            ctx.beginPath(); f=true;
-            for(const pid of plist){const p=PORTS[pid];if(!p) continue;if(f){ctx.moveTo(p.x*W,p.y*H);f=false;}else ctx.lineTo(p.x*W,p.y*H);}
-            ctx.stroke();
-            ctx.setLineDash([]); ctx.shadowBlur=0;
-          }
-        }
-      }
-
-      // ── PORTS (style épingle de carte) ──
-      for(const [id,p] of Object.entries(PORTS)){
-        const px=p.x*W, py=p.y*H;
-        const hov=hovRef.current===id;
-        const sz=p.major?6:4;
-
-        ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=6; ctx.shadowOffsetY=2;
-
-        // Base du point (cercle blanc)
-        ctx.beginPath(); ctx.arc(px,py,sz+1.5,0,Math.PI*2);
-        ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
-        ctx.beginPath(); ctx.arc(px,py,sz,0,Math.PI*2);
-        ctx.fillStyle=hov?'#f59e0b':p.major?'#e53e3e':'#e67e22';
-        ctx.fill();
-        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1; ctx.stroke();
-
-        ctx.shadowBlur=0; ctx.shadowOffsetY=0;
-
-        // Étiquette
-        if(p.major||hov){
-          ctx.font=`bold ${hov?12:10}px Georgia,serif`;
-          ctx.textAlign='center';
-          // Fond étiquette
-          const tw=ctx.measureText(p.label).width;
-          ctx.fillStyle='rgba(255,248,220,0.88)';
-          ctx.beginPath();
-          ctx.roundRect(px-tw/2-4,py-sz-18,tw+8,14,3);
-          ctx.fill();
-          ctx.strokeStyle='rgba(139,105,20,0.4)'; ctx.lineWidth=0.8; ctx.stroke();
-          // Texte
-          ctx.fillStyle='#3d2b0a';
-          ctx.textBaseline='alphabetic';
-          ctx.fillText(p.label,px,py-sz-7);
-        }
-      }
-
-      // ── NAVIRES (style cartoon) ──
-      for(const s of ships){
-        s.displayX+=(s.x-s.displayX)*0.04;
-        s.displayY+=(s.y-s.displayY)*0.04;
-        s.pulse=(s.pulse+0.04)%(Math.PI*2);
-        const sx=s.displayX*W, sy=s.displayY*H;
-        const hov=hovRef.current===s.uid;
-        const sel=selected?.uid===s.uid;
-        const sz=s.isMe?20:16;
-        const pulse=Math.sin(s.pulse)*.5+.5;
-
-        // Sillage (traîne blanche)
-        s.wake.push({x:sx,y:sy,a:0});
-        if(s.wake.length>18) s.wake.shift();
-        s.wake.forEach(w=>{
-          w.a++;
-          const a=Math.max(0,0.35-w.a*0.02);
-          const r=w.a*0.7+2;
-          ctx.beginPath(); ctx.arc(w.x,w.y,r,0,Math.PI*2);
-          ctx.fillStyle=`rgba(255,255,255,${a})`; ctx.fill();
-        });
-
-        // Aura sélection / hover
-        if(sel||hov||s.isMe){
-          const aura=ctx.createRadialGradient(sx,sy,0,sx,sy,sz+(s.isMe?18:10)+pulse*6);
-          const col=s.isMe?'255,215,0':'255,255,255';
-          aura.addColorStop(0,`rgba(${col},${s.isMe?0.35+pulse*0.2:0.2})`);
-          aura.addColorStop(1,`rgba(${col},0)`);
-          ctx.fillStyle=aura; ctx.beginPath(); ctx.arc(sx,sy,sz+18+pulse*6,0,Math.PI*2); ctx.fill();
-        }
-
-        // Anneau cartoon
-        if(sel){
-          ctx.setLineDash([6,5]);
-          ctx.strokeStyle='rgba(255,215,0,0.9)'; ctx.lineWidth=2.5;
-          ctx.beginPath(); ctx.arc(sx,sy,sz+9,0,Math.PI*2); ctx.stroke();
-          ctx.setLineDash([]);
-        }
-
-        // Corps du navire — style cartoon avec dégradé
-        ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
-
-        const shipGrad=ctx.createRadialGradient(sx-sz*0.3,sy-sz*0.35,sz*0.1,sx,sy,sz);
-        if(s.isMe){
-          shipGrad.addColorStop(0,'#fbbf24');
-          shipGrad.addColorStop(0.5,'#f59e0b');
-          shipGrad.addColorStop(1,'#d97706');
-        } else {
-          shipGrad.addColorStop(0,'#60a5fa');
-          shipGrad.addColorStop(0.5,'#3b82f6');
-          shipGrad.addColorStop(1,'#1d4ed8');
-        }
-        ctx.beginPath(); ctx.arc(sx,sy,sz,0,Math.PI*2);
-        ctx.fillStyle=shipGrad; ctx.fill();
-
-        // Bordure blanche (effet cartoon)
-        ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=s.isMe?3:2;
-        ctx.beginPath(); ctx.arc(sx,sy,sz,0,Math.PI*2); ctx.stroke();
-
-        ctx.shadowBlur=0; ctx.shadowOffsetY=0;
-
-        // Icône navire
-        ctx.font=`${sz-2}px 'Segoe UI Emoji'`;
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(s.flag||'🚢',sx,sy+1);
-
-        // Badge compagnie (bulle cartoon)
-        const badgeTxt=s.logo;
-        ctx.font=`bold 13px 'Segoe UI Emoji',sans-serif`;
-        const bw=ctx.measureText(badgeTxt).width+10;
-        const bh=18; const bx=sx-bw/2, by=sy-sz-bh-4;
-        // Fond bulle
-        ctx.fillStyle=s.isMe?'rgba(253,230,138,0.95)':'rgba(255,255,255,0.92)';
-        ctx.strokeStyle=s.isMe?'#d97706':'rgba(0,0,0,0.2)';
-        ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,5); ctx.fill(); ctx.stroke();
-        // Petite flèche
-        ctx.beginPath(); ctx.moveTo(sx-5,by+bh); ctx.lineTo(sx+5,by+bh); ctx.lineTo(sx,by+bh+5); ctx.closePath();
-        ctx.fillStyle=s.isMe?'rgba(253,230,138,0.95)':'rgba(255,255,255,0.92)'; ctx.fill();
-        // Texte
-        ctx.fillStyle='#1a1a1a'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(badgeTxt,sx,by+bh/2);
-      }
-
-      // ── BOUSSOLE CARTOON ──
-      drawCompass(W-58, H-58, 40);
-
-      // ── TITRE CARTE ──
-      ctx.save();
-      ctx.font=`bold ${Math.round(W*0.022)}px Georgia,serif`;
-      ctx.textAlign='left'; ctx.textBaseline='top';
-      const title='⚓ Armateur de Croisière';
-      const tw2=ctx.measureText(title).width;
-      // Parchemin fond titre
-      ctx.fillStyle='rgba(255,248,220,0.92)';
-      ctx.strokeStyle='rgba(139,105,20,0.5)'; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.roundRect(12,12,tw2+20,Math.round(W*0.022)+14,6);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#3d2b0a';
-      ctx.fillText(title,22,19);
-      ctx.restore();
-
-      stateRef.current.frame=frame+1;
-      animRef.current=requestAnimationFrame(draw);
-    }
-    draw();
-    return ()=>{ cancelAnimationFrame(animRef.current); window.removeEventListener('resize',resize); };
-  },[gameData,selected]);
-
-  const onMove=useCallback((e)=>{
-    const c=canvasRef.current; if(!c) return;
-    const r=c.getBoundingClientRect();
-    const mx=(e.clientX-r.left)/c.width, my=(e.clientY-r.top)/c.height;
-    let found=null;
-    for(const s of stateRef.current.ships){if(Math.abs(s.displayX-mx)<.028&&Math.abs(s.displayY-my)<.028){found={t:'ship',d:s};break;}}
-    if(!found) for(const [id,p] of Object.entries(PORTS)){if(Math.abs(p.x-mx)<.016&&Math.abs(p.y-my)<.016){found={t:'port',d:{...p,id}};break;}}
-    hovRef.current=found?.d?.uid||found?.d?.id||null;
-    if(found?.t==='ship'){setTooltip({t:'ship',s:found.d,x:e.clientX,y:e.clientY});c.style.cursor='pointer';}
-    else if(found?.t==='port'){setTooltip({t:'port',p:found.d,x:e.clientX,y:e.clientY});c.style.cursor='pointer';}
-    else{setTooltip(null);c.style.cursor='default';}
-  },[]);
-
-  const onClick=useCallback(()=>{
-    if(tooltip?.t==='ship') setSelected(v=>v?.uid===tooltip.s.uid?null:tooltip.s);
-    else setSelected(null);
-  },[tooltip]);
-
-  const total=stateRef.current.ships.length;
-  const mine=stateRef.current.ships.filter(s=>s.isMe).length;
+// ── Composant Bateau SVG ───────────────────────────────────────────────────────
+function ShipMarker({ ship, selected, hovered, onClick, onHover, frame }) {
+  const isMe = ship.isMe;
+  const pulse = Math.sin(frame * 0.045 + (ship.pulseOffset || 0));
+  const aura = 8 + pulse * 3;
 
   return (
-    <div style={{position:'relative',width:'100%',height:'100%',overflow:'hidden'}}>
-      <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block'}} onMouseMove={onMove} onClick={onClick}/>
+    <Marker coordinates={[ship.lon, ship.lat]}>
+      <g
+        onClick={() => onClick(ship)}
+        onMouseEnter={() => onHover(ship)}
+        onMouseLeave={() => onHover(null)}
+        style={{ cursor: "pointer" }}
+      >
+        {/* Sillage */}
+        {[1,2,3].map(i => (
+          <circle key={i} r={i*4} fill="rgba(255,255,255,0)" stroke="rgba(255,255,255,0.15)" strokeWidth={1.5-i*0.4}/>
+        ))}
 
-      {/* Compteur style parchemin */}
-      <div style={S.counter}>
-        ⛴ <b>{total}</b> navire{total>1?'s':''} en mer
-        {mine>0&&<span style={{color:'#d97706',marginLeft:8,fontWeight:700}}>⭐ {mine} à moi</span>}
+        {/* Aura mon navire */}
+        {isMe && (
+          <circle r={aura + 10} fill={`rgba(255,215,0,${0.2 + pulse * 0.1})`} />
+        )}
+
+        {/* Cercle sélection */}
+        {(selected || hovered) && (
+          <circle r={22} fill="none" stroke={isMe ? "rgba(255,215,0,0.9)" : "rgba(255,255,255,0.7)"} strokeWidth={2} strokeDasharray="5,4"/>
+        )}
+
+        {/* Corps bateau SVG illustré */}
+        <g transform="translate(-14, -18)">
+          {/* Coque */}
+          <path d="M0 14 L28 14 L25 22 L3 22 Z" fill={isMe ? "#c0392b" : "#8e44ad"} stroke={isMe ? "#7b241c" : "#6c3483"} strokeWidth="1.2"/>
+          {/* Pont */}
+          <rect x="2" y="8" width="24" height="7" rx="2" fill="#ecf0f1" stroke="#bdc3c7" strokeWidth="0.8"/>
+          {/* Superstructure */}
+          <rect x="6" y="0" width="16" height="9" rx="2" fill={isMe ? "#e74c3c" : "#9b59b6"} stroke={isMe ? "#c0392b" : "#7d3c98"} strokeWidth="0.8"/>
+          {/* Cheminée */}
+          <rect x="11" y="-7" width="5" height="8" fill={isMe ? "#c0392b" : "#7d3c98"} stroke="rgba(0,0,0,0.2)" strokeWidth="0.6"/>
+          {/* Fumée */}
+          {[0,1,2].map(i => (
+            <circle key={i} cx={13 - i*1.5} cy={-10 - i*4} r={2.5 + i*1.8} fill={`rgba(210,210,210,${0.45 - i*0.12})`}/>
+          ))}
+          {/* Hublots */}
+          {[-4, 2, 8, 14].map(x => (
+            <circle key={x} cx={x+8} cy="11" r="1.8" fill="#3498db" stroke="#2980b9" strokeWidth="0.5"/>
+          ))}
+          {/* Mât */}
+          <line x1="14" y1="0" x2="14" y2="-18" stroke="#7f8c8d" strokeWidth="1.2"/>
+          {/* Drapeau */}
+          <path d={`M14 -18 L${23 + pulse*2} -13 L14 -8 Z`} fill={isMe ? "#f39c12" : "#e74c3c"}/>
+        </g>
+
+        {/* Bulle logo compagnie */}
+        <g transform="translate(0, -42)">
+          <rect x="-14" y="-9" width="28" height="16" rx="4" fill={isMe ? "rgba(253,230,100,0.97)" : "rgba(255,255,255,0.95)"} stroke={isMe ? "#d97706" : "rgba(0,0,0,0.2)"} strokeWidth="1.2"/>
+          <path d="M-4 7 L4 7 L0 13 Z" fill={isMe ? "rgba(253,230,100,0.97)" : "rgba(255,255,255,0.95)"}/>
+          <text x="0" y="4" textAnchor="middle" fontSize="11" dominantBaseline="middle">{ship.logo}</text>
+        </g>
+      </g>
+    </Marker>
+  );
+}
+
+// ── Composant Port SVG ────────────────────────────────────────────────────────
+function PortMarker({ id, port, hovered, onHover }) {
+  const sz = port.major ? 5 : 3;
+  return (
+    <Marker coordinates={[port.lon, port.lat]}>
+      <g onMouseEnter={() => onHover(id)} onMouseLeave={() => onHover(null)} style={{ cursor: "default" }}>
+        <circle r={sz + 2} fill="rgba(255,255,255,0.85)" filter="url(#portShadow)"/>
+        <circle r={sz} fill={hovered ? "#f39c12" : port.major ? "#e74c3c" : "#e67e22"} stroke="rgba(0,0,0,0.2)" strokeWidth="0.8"/>
+        {(port.major || hovered) && (
+          <g>
+            <rect
+              x={-port.label.length * 3.5 - 4}
+              y={-sz - 18}
+              width={port.label.length * 7 + 8}
+              height={13}
+              rx="3"
+              fill="rgba(255,248,210,0.96)"
+              stroke="rgba(139,105,20,0.45)"
+              strokeWidth="0.9"
+            />
+            <text
+              x="0"
+              y={-sz - 9}
+              textAnchor="middle"
+              fontSize={hovered ? "10" : "8.5"}
+              fontFamily="Georgia, serif"
+              fontWeight="bold"
+              fill="#3d2b0a"
+            >{port.label}</text>
+          </g>
+        )}
+      </g>
+    </Marker>
+  );
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
+export default function GameMap({ gameData, myCompany }) {
+  const [sel,       setSel]       = useState(null);
+  const [hovShip,   setHovShip]   = useState(null);
+  const [hovPort,   setHovPort]   = useState(null);
+  const [frame,     setFrame]     = useState(0);
+  const [ships,     setShips]     = useState(
+    DEMO_SHIPS.map(s => ({ ...s, pulseOffset: Math.random() * Math.PI * 2 }))
+  );
+  const animRef = useRef(null);
+  const lastT   = useRef(0);
+
+  // Animation frame
+  useEffect(() => {
+    const loop = (t) => {
+      if (t - lastT.current > 80) { // ~12fps pour le SVG
+        setFrame(f => f + 1);
+        lastT.current = t;
+      }
+      animRef.current = requestAnimationFrame(loop);
+    };
+    animRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  // Construire ships depuis gameData
+  useEffect(() => {
+    if (!gameData?.companies) return;
+    const built = [];
+    for (const co of Object.values(gameData.companies)) {
+      for (const nav of (co.flotte || [])) {
+        if (!nav.routeActive) continue;
+        const route = gameData.routes?.find(r => r.id === nav.routeActive);
+        const pts = route ? [route.hub_depart, ...route.escales, route.hub_arrivee] : [];
+        const isMe = myCompany?.ownerId === co.ownerId;
+        const now = Date.now(), start = nav.routeAssignedAt || now - 86400000;
+        const total = (route?.duree || 7) * 86400000;
+        const ratio = ((now - start) % total) / total;
+        const segs = Math.max(1, pts.length - 1);
+        const si = Math.min(Math.floor(ratio * segs), segs - 1);
+        const sr = ratio * segs - si;
+        const pA = PORTS[pts[si]], pB = PORTS[pts[si + 1]];
+        if (!pA) continue;
+        built.push({
+          uid: nav.uid, nom: nav.nom, flag: nav.flag || '', logo: co.logo, compNom: co.nom, isMe,
+          lon: pA.lon + (pB ? (pB.lon - pA.lon) * sr : 0),
+          lat: pA.lat + (pB ? (pB.lat - pA.lat) * sr : 0),
+          route: route?.label || '', next: pB ? PORTS[pts[si + 1]]?.label : 'Arrivée',
+          voyages: nav.voyages || 0, sat: nav.satisfactionMoyenne || 70,
+          pulseOffset: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+    if (built.length > 0) setShips(built);
+  }, [gameData, myCompany]);
+
+  const total = ships.length, mine = ships.filter(s => s.isMe).length;
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "#c8943c", fontFamily: "Georgia, serif" }}>
+      {/* ── Bordure parchemin ── */}
+      <div style={{
+        position: "absolute", inset: 0, zIndex: 0,
+        background: "linear-gradient(135deg, #c8843c 0%, #e8a840 50%, #c07030 100%)",
+        boxShadow: "inset 0 0 40px rgba(0,0,0,0.25)",
+      }}/>
+      <div style={{
+        position: "absolute", inset: 14, zIndex: 1,
+        border: "4px dashed rgba(100,55,10,0.5)",
+        borderRadius: 6, pointerEvents: "none",
+      }}/>
+      {/* Coins ⚓ */}
+      {[[14,14],[null,14],[14,null],[null,null]].map(([l,t],i)=>(
+        <div key={i} style={{position:"absolute",left:l??undefined,right:l===null?14:undefined,top:t??undefined,bottom:t===null?14:undefined,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"rgba(80,40,5,0.55)",zIndex:2}}>⚓</div>
+      ))}
+
+      {/* ── Carte SVG ── */}
+      <div style={{ position: "absolute", inset: 22, zIndex: 3, borderRadius: 4, overflow: "hidden" }}>
+        <ComposableMap
+          width={900}
+          height={480}
+          projection="geoMercator"
+          projectionConfig={{ center: [20, 30], scale: 140 }}
+          style={{ width: "100%", height: "100%" }}
+        >
+          <defs>
+            {/* Gradient terre */}
+            <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stopColor="#8cc870"/>
+              <stop offset="40%"  stopColor="#7ab860"/>
+              <stop offset="70%"  stopColor="#c8a840"/>
+              <stop offset="100%" stopColor="#6a9e50"/>
+            </linearGradient>
+            {/* Gradient océan */}
+            <radialGradient id="oceanGrad" cx="35%" cy="30%" r="70%">
+              <stop offset="0%"   stopColor="#2c94d8"/>
+              <stop offset="50%"  stopColor="#1e7ab8"/>
+              <stop offset="100%" stopColor="#145888"/>
+            </radialGradient>
+            {/* Filtre ombre port */}
+            <filter id="portShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="1" dy="2" stdDeviation="2" floodOpacity="0.4"/>
+            </filter>
+            {/* Filtre ombre continent */}
+            <filter id="landShadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="3" dy="4" stdDeviation="4" floodOpacity="0.35"/>
+            </filter>
+            {/* Motif vagues */}
+            <pattern id="wavePattern" x="0" y="0" width="60" height="20" patternUnits="userSpaceOnUse">
+              <path d="M0 10 Q15 3 30 10 Q45 17 60 10" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2"/>
+            </pattern>
+          </defs>
+
+          {/* Fond océan */}
+          <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#oceanGrad)"/>
+          {/* Vagues */}
+          <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#wavePattern)" opacity="0.6"/>
+
+          {/* Lignes de grille lat/lon */}
+          {[-60,-30,0,30,60].map(lat => {
+            const y = lat === 0 ? "50%" : undefined;
+            return <line key={lat} x1="-1000" y1={lat} x2="2000" y2={lat} stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" transform={`translate(0,${-lat})`}/>;
+          })}
+
+          {/* Noms des océans */}
+          {[
+            { label: "OCÉAN ATLANTIQUE",  lon: -30,  lat:  8  },
+            { label: "OCÉAN PACIFIQUE",   lon:-140,  lat: 10  },
+            { label: "OCÉAN INDIEN",      lon:  72,  lat:-18  },
+            { label: "ARCTIQUE",          lon:   0,  lat: 72  },
+            { label: "MER MÉDITERRANÉE",  lon:  16,  lat: 36  },
+            { label: "MER CARAÏBES",      lon: -74,  lat: 16  },
+          ].map(({label,lon,lat})=>(
+            <Marker key={label} coordinates={[lon,lat]}>
+              <text textAnchor="middle" fontSize="9" fontFamily="Georgia,serif" fontWeight="bold" fill="rgba(255,255,255,0.38)" letterSpacing="0.8">
+                {label}
+              </text>
+            </Marker>
+          ))}
+
+          {/* ── Continents ── */}
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map(geo => (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  style={geoStyle}
+                  filter="url(#landShadow)"
+                />
+              ))
+            }
+          </Geographies>
+
+          {/* ── Couche texture grain sur terres ── */}
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map(geo => (
+                <Geography
+                  key={geo.rsmKey + "_t"}
+                  geography={geo}
+                  style={{
+                    default: { fill: "rgba(0,0,0,0.04)", stroke: "none", outline: "none" },
+                    hover:   { fill: "rgba(0,0,0,0.04)", stroke: "none", outline: "none" },
+                    pressed: { fill: "rgba(0,0,0,0.04)", stroke: "none", outline: "none" },
+                  }}
+                />
+              ))
+            }
+          </Geographies>
+
+          {/* ── Routes ── */}
+          {ROUTES.map(rt => {
+            const pts = rt.ports.map(id => PORTS[id]).filter(Boolean);
+            return pts.slice(0, -1).map((pA, i) => {
+              const pB = pts[i + 1];
+              return (
+                <Line
+                  key={`${rt.id}_${i}`}
+                  from={[pA.lon, pA.lat]}
+                  to={[pB.lon, pB.lat]}
+                  stroke={rt.color + "dd"}
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeDasharray="7,10"
+                />
+              );
+            });
+          })}
+
+          {/* ── Ports ── */}
+          {Object.entries(PORTS).map(([id, port]) => (
+            <PortMarker
+              key={id}
+              id={id}
+              port={port}
+              hovered={hovPort === id}
+              onHover={setHovPort}
+            />
+          ))}
+
+          {/* ── Baleines déco ── */}
+          {[[-35, 8], [-155, 12], [75, -18]].map(([lon, lat], i) => (
+            <Marker key={`whale_${i}`} coordinates={[lon, lat]}>
+              <text fontSize="18" textAnchor="middle" dominantBaseline="middle" style={{ userSelect: "none" }}>🐋</text>
+            </Marker>
+          ))}
+          {[[-70, 18], [60, -10]].map(([lon, lat], i) => (
+            <Marker key={`isle_${i}`} coordinates={[lon, lat]}>
+              <text fontSize="14" textAnchor="middle" dominantBaseline="middle">🌴</text>
+            </Marker>
+          ))}
+
+          {/* ── Navires ── */}
+          {ships.map(ship => (
+            <ShipMarker
+              key={ship.uid}
+              ship={ship}
+              selected={sel?.uid === ship.uid}
+              hovered={hovShip?.uid === ship.uid}
+              onClick={s => setSel(prev => prev?.uid === s.uid ? null : s)}
+              onHover={setHovShip}
+              frame={frame}
+            />
+          ))}
+        </ComposableMap>
+
+        {/* ── Boussole SVG ornée ── */}
+        <div style={{ position: "absolute", bottom: 12, left: 12 }}>
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <defs>
+              <radialGradient id="compBg" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#fff8e0"/>
+                <stop offset="65%" stopColor="#f0d888"/>
+                <stop offset="100%" stopColor="#c09030"/>
+              </radialGradient>
+            </defs>
+            <circle cx="45" cy="45" r="42" fill="url(#compBg)" stroke="#8B6914" strokeWidth="2.5"/>
+            <circle cx="45" cy="45" r="33" fill="none" stroke="rgba(139,105,20,0.25)" strokeWidth="0.8"/>
+            {/* Graduations */}
+            {Array.from({length:36},(_,i)=>(
+              <line key={i} x1="45" y1={i%9===0?10:14} x2="45" y2="18"
+                stroke="rgba(100,60,10,0.4)" strokeWidth={i%9===0?1.8:.6}
+                transform={`rotate(${i*10},45,45)`}/>
+            ))}
+            {/* Aiguilles */}
+            <polygon points="45,8 41,45 45,38 49,45" fill="#c0392b"/>
+            <polygon points="45,82 41,45 45,52 49,45" fill="rgba(139,105,20,0.5)"/>
+            <polygon points="45,45 8,41 18,45 8,49" fill="rgba(139,105,20,0.5)"/>
+            <polygon points="45,45 82,41 72,45 82,49" fill="rgba(139,105,20,0.5)"/>
+            {/* NESW */}
+            {[["N",45,6,"#c0392b"],["S",45,87,"#5d3a10"],["E",87,47,"#5d3a10"],["W",5,47,"#5d3a10"]].map(([l,x,y,c])=>(
+              <text key={l} x={x} y={y} textAnchor="middle" fontSize="11" fontWeight="bold" fontFamily="Georgia,serif" fill={c}>{l}</text>
+            ))}
+            <circle cx="45" cy="45" r="5" fill="#d4a017" stroke="#8B6914" strokeWidth="1.2"/>
+          </svg>
+        </div>
+
+        {/* ── Bannière titre ── */}
+        <div style={{
+          position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
+          background: "linear-gradient(90deg, #b07020 0%, #f0c050 20%, #f8d870 50%, #f0c050 80%, #b07020 100%)",
+          border: "2px solid #8B6914",
+          borderRadius: "4px",
+          padding: "7px 28px",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)",
+          whiteSpace: "nowrap",
+          clipPath: "polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%)",
+        }}>
+          <div style={{ fontSize: "clamp(11px,1.8vw,18px)", fontWeight: "bold", color: "#4a1e05", letterSpacing: "1.5px", textAlign: "center" }}>
+            LE TOUR DU MONDE EN CROISIÈRE
+          </div>
+          <div style={{ fontSize: "clamp(8px,1.1vw,11px)", color: "rgba(74,30,5,0.65)", textAlign: "center", fontStyle: "italic" }}>
+            Planisphère du Jeu
+          </div>
+        </div>
       </div>
 
-      {/* Tooltip style carte */}
-      {tooltip?.t==='ship'&&(
-        <div style={{...S.tip,left:Math.min(tooltip.x+16,window.innerWidth-200),top:Math.max(tooltip.y-110,10)}}>
-          <div style={S.tth}>{tooltip.s.logo} {tooltip.s.compNom}</div>
-          <div style={S.ttn}>{tooltip.s.flag} {tooltip.s.nom}</div>
-          <div style={S.hr}/>
-          {[['🗺',tooltip.s.routeLabel.slice(0,24)],['➡️',tooltip.s.portProchain],['✈️',tooltip.s.voyages+' voyages'],['😊',Math.round(tooltip.s.satisfaction)+'/100']].map(([k,v])=>(
-            <div key={k} style={S.tr}><span>{k}</span><span style={{fontWeight:600}}>{v}</span></div>
-          ))}
-          {tooltip.s.isMe&&<div style={S.tm}>⭐ Votre navire</div>}
-        </div>
-      )}
-      {tooltip?.t==='port'&&(
-        <div style={{...S.tip,left:Math.min(tooltip.x+16,window.innerWidth-180),top:Math.max(tooltip.y-75,10)}}>
-          <div style={S.tth}>📍 {tooltip.p.label}</div>
+      {/* ── HUD ── */}
+      <div style={{ position: "absolute", top: 75, left: 30, zIndex: 10, background: "rgba(255,248,210,0.95)", border: "1px solid rgba(139,105,20,0.45)", borderRadius: 20, padding: "5px 14px", fontSize: 12, color: "#3d2b0a", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
+        ⛴ {total} navire{total > 1 ? "s" : ""} en mer
+        {mine > 0 && <span style={{ color: "#d97706", fontWeight: 700 }}> · ⭐ {mine} à moi</span>}
+      </div>
+
+      {/* ── Tooltip navire survolé ── */}
+      {hovShip && !sel && (
+        <div style={{ position: "absolute", top: "50%", right: 12, transform: "translateY(-50%)", zIndex: 20, background: "rgba(255,248,210,0.98)", border: "2px solid rgba(139,105,20,0.5)", borderRadius: 12, padding: "12px 14px", minWidth: 185, boxShadow: "0 6px 24px rgba(0,0,0,0.35)", pointerEvents: "none" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#2c1a06" }}>{hovShip.logo} {hovShip.compNom}</div>
+          <div style={{ fontSize: 14, color: "#c05c0a", fontWeight: 700, marginTop: 3 }}>{hovShip.flag} {hovShip.nom}</div>
+          <hr style={{ border: "none", borderTop: "1px solid rgba(139,105,20,0.25)", margin: "7px 0" }}/>
+          <div style={{ fontSize: 11, color: "#5d4e37" }}>🗺 {hovShip.route}</div>
+          <div style={{ fontSize: 11, color: "#5d4e37", marginTop: 3 }}>➡️ Prochain : {hovShip.next}</div>
+          <div style={{ fontSize: 10, color: "#8b6914", marginTop: 6, fontStyle: "italic" }}>Cliquez pour les détails</div>
         </div>
       )}
 
-      {/* Fiche navire sélectionné */}
-      {selected&&(
-        <div style={S.panel}>
-          <div style={S.ph}><span style={{fontWeight:700}}>{selected.logo} {selected.compNom}</span><button style={S.cl} onClick={()=>setSelected(null)}>✕</button></div>
-          <div style={S.ps}>{selected.flag} {selected.nom}</div>
-          <div style={S.hr}/>
-          {[['🗺 Route',selected.routeLabel.slice(0,26)],['➡️ Prochain',selected.portProchain],['✈️ Voyages',selected.voyages],['😊 Satisfaction',Math.round(selected.satisfaction)+'/100'],['🪙 Revenus',(selected.revenu/1e6).toFixed(2)+'M 🪙']].map(([k,v])=>(
-            <div key={k} style={S.pr}><span style={{color:'#6b4c1a',fontSize:11}}>{k}</span><span style={{color:'#2c1a06',fontSize:11,fontWeight:700}}>{v}</span></div>
+      {/* ── Fiche navire sélectionné ── */}
+      {sel && (
+        <div style={{ position: "absolute", top: "50%", right: 12, transform: "translateY(-50%)", zIndex: 20, width: 230, background: "rgba(255,248,210,0.98)", border: "2px solid rgba(139,105,20,0.55)", borderRadius: 14, padding: "14px 16px", boxShadow: "0 8px 28px rgba(0,0,0,0.4)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#2c1a06" }}>{sel.logo} {sel.compNom}</div>
+            <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#8b6914", lineHeight: 1 }} onClick={() => setSel(null)}>✕</button>
+          </div>
+          <div style={{ fontSize: 16, color: "#c05c0a", fontWeight: 700, marginTop: 5 }}>{sel.flag} {sel.nom}</div>
+          <hr style={{ border: "none", borderTop: "1px solid rgba(139,105,20,0.28)", margin: "9px 0" }}/>
+          {[["🗺 Route", sel.route.slice(0,26)], ["➡️ Prochain", sel.next], ["✈️ Voyages", sel.voyages], ["😊 Satisfaction", `${sel.sat}/100`]].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11 }}>
+              <span style={{ color: "#5d4e37" }}>{k}</span>
+              <span style={{ color: "#2c1a06", fontWeight: 700 }}>{v}</span>
+            </div>
           ))}
-          {selected.isMe&&<div style={S.pm}>⭐ Votre navire</div>}
+          {sel.isMe && <div style={{ marginTop: 10, textAlign: "center", fontSize: 12, color: "#d97706", fontWeight: 700, background: "rgba(251,191,36,0.15)", borderRadius: 8, padding: "5px" }}>⭐ Votre navire</div>}
         </div>
       )}
 
-      {/* Légende style carte */}
-      <div style={S.legend}>
-        <div style={{fontSize:10,fontWeight:700,color:'#3d2b0a',marginBottom:4,borderBottom:'1px solid rgba(139,105,20,0.3)',paddingBottom:3}}>LÉGENDE</div>
-        {Object.entries(ROUTE_COLORS).map(([r,c])=>(
-          <div key={r} style={{display:'flex',alignItems:'center',gap:6,fontSize:10,color:'#3d2b0a'}}>
-            <div style={{width:20,height:3,background:c,borderRadius:2}}/>
-            {r}
+      {/* ── Légende ── */}
+      <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 10, background: "rgba(255,248,210,0.95)", border: "1.5px solid rgba(139,105,20,0.45)", borderRadius: 10, padding: "9px 13px", boxShadow: "0 2px 10px rgba(0,0,0,0.22)" }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#8b6914", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 5, paddingBottom: 3, borderBottom: "1px solid rgba(139,105,20,0.2)" }}>ROUTES</div>
+        {ROUTES.map(rt => (
+          <div key={rt.id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10, color: "#3d2b0a", marginTop: 3 }}>
+            <div style={{ width: 22, height: 3, background: rt.color, borderRadius: 2, border: "1px dashed rgba(0,0,0,0.15)" }}/>
+            {rt.label}
           </div>
         ))}
       </div>
     </div>
   );
 }
-
-const S={
-  counter:{position:'absolute',top:56,left:12,background:'rgba(255,248,220,0.92)',border:'1px solid rgba(139,105,20,0.4)',borderRadius:20,padding:'5px 14px',fontSize:12,color:'#3d2b0a',fontFamily:'Georgia,serif',boxShadow:'0 2px 8px rgba(0,0,0,0.3)'},
-  tip    :{position:'fixed',zIndex:200,background:'rgba(255,248,220,0.97)',border:'2px solid rgba(139,105,20,0.5)',borderRadius:10,padding:'12px 14px',minWidth:175,boxShadow:'0 6px 24px rgba(0,0,0,0.4)',pointerEvents:'none',fontFamily:'Georgia,serif'},
-  tth    :{fontSize:13,fontWeight:700,color:'#2c1a06'},
-  ttn    :{fontSize:14,color:'#c05c0a',fontWeight:700,marginTop:3},
-  hr     :{borderTop:'1px solid rgba(139,105,20,0.3)',margin:'7px 0'},
-  tr     :{display:'flex',justifyContent:'space-between',gap:12,fontSize:11,color:'#5d4e37',marginTop:4},
-  tm     :{marginTop:8,textAlign:'center',fontSize:11,color:'#d97706',fontWeight:700},
-  panel  :{position:'absolute',bottom:12,right:12,width:235,background:'rgba(255,248,220,0.97)',border:'2px solid rgba(139,105,20,0.5)',borderRadius:12,padding:'14px 16px',boxShadow:'0 6px 24px rgba(0,0,0,0.4)',fontFamily:'Georgia,serif'},
-  ph     :{display:'flex',justifyContent:'space-between',fontSize:13,color:'#2c1a06'},
-  ps     :{fontSize:16,fontWeight:700,color:'#c05c0a',marginTop:5},
-  pr     :{display:'flex',justifyContent:'space-between',marginTop:6},
-  pm     :{marginTop:10,textAlign:'center',fontSize:12,color:'#d97706',fontWeight:700},
-  cl     :{background:'none',border:'none',color:'rgba(60,30,0,0.4)',cursor:'pointer',fontSize:16,padding:0},
-  legend :{position:'absolute',bottom:12,left:12,background:'rgba(255,248,220,0.93)',border:'1px solid rgba(139,105,20,0.4)',borderRadius:8,padding:'8px 12px',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',fontFamily:'Georgia,serif',display:'flex',flexDirection:'column',gap:4},
-};
