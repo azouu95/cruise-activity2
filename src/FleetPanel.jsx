@@ -1,139 +1,176 @@
 import { useState } from 'react';
+import { api, fmt, satisfEmoji, satisfColor, T } from './api.js';
 
-const fmt = (n) => {
-  if (!n) return '0 🪙';
-  if (n >= 1e9) return `${(n/1e9).toFixed(2)}Md 🪙`;
-  if (n >= 1e6) return `${(n/1e6).toFixed(2)}M 🪙`;
-  if (n >= 1e3) return `${(n/1e3).toFixed(1)}K 🪙`;
-  return `${n} 🪙`;
-};
-
-const satisfEmoji = s => s >= 85 ? '🤩' : s >= 70 ? '😊' : s >= 50 ? '😐' : '😟';
-const satisfColor = s => s >= 85 ? '#16a34a' : s >= 70 ? '#ca8a04' : s >= 50 ? '#ea580c' : '#dc2626';
-
-function Bar({ value, max = 100, color }) {
-  const pct = Math.min(100, Math.round((value / max) * 100));
+function Bar({ value, max=100, color }) {
+  const pct = Math.min(100, Math.round((value/Math.max(1,max))*100));
   return (
-    <div style={{ background: 'rgba(139,105,20,0.15)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.6s ease' }} />
+    <div style={{background:'rgba(139,105,20,0.15)',borderRadius:4,height:6,overflow:'hidden'}}>
+      <div style={{width:`${pct}%`,height:'100%',background:color,borderRadius:4,transition:'width 0.5s'}}/>
     </div>
   );
 }
 
-export default function FleetPanel({ company, gameData }) {
-  const [selected, setSelected] = useState(null);
+function StatBox({label,val,color}) {
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',padding:'10px 4px',borderRight:`1px solid ${T.border}`}}>
+      <div style={{fontSize:14,fontWeight:700,color:color||T.dark}}>{val}</div>
+      <div style={{fontSize:9,color:T.mid,marginTop:2,textAlign:'center'}}>{label}</div>
+    </div>
+  );
+}
+
+export default function FleetPanel({ company, gameData, userId, onRefresh }) {
+  const [selected,  setSelected]  = useState(null);
+  const [editing,   setEditing]   = useState(null); // 'rename'|'flag'|'sell'
+  const [inputVal,  setInputVal]  = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [msg,       setMsg]       = useState(null);
+
+  const showMsg = (ok, text) => { setMsg({ok,text}); setTimeout(()=>setMsg(null),3000); };
 
   if (!company) {
     return (
       <div style={S.empty}>
-        <div style={{ fontSize: 56 }}>⚓</div>
-        <div style={S.emptyTitle}>Pas encore de compagnie</div>
-        <div style={S.emptySub}>Ouvrez le jeu dans Discord pour lancer votre empire maritime.</div>
+        <div style={{fontSize:52}}>⚓</div>
+        <div style={S.emptyTitle}>Aucune compagnie</div>
+        <div style={S.emptySub}>Fondez votre empire via le bouton en haut, ou dans Discord.</div>
       </div>
     );
   }
 
-  const navires   = company.flotte || [];
-  const enMer     = navires.filter(n => n.routeActive).length;
-  const totalRev  = navires.reduce((s, n) => s + (n.revenusGeneres || 0), 0);
+  const navires  = company.flotte || [];
+  const enMer    = navires.filter(n=>n.routeActive).length;
+
+  const doAction = async(action, params) => {
+    setLoading(true);
+    try {
+      await api[action](userId, ...params);
+      showMsg(true, '✅ Action effectuée !');
+      setEditing(null); setSelected(null);
+      setTimeout(()=>onRefresh(), 500);
+    } catch(e) { showMsg(false, e.message); }
+    finally { setLoading(false); }
+  };
 
   return (
     <div style={S.root}>
-
-      {/* ── En-tête parchemin ── */}
+      {/* Header */}
       <div style={S.header}>
-        <div style={S.headerLeft}>
-          <div style={S.compLogo}>{company.logo}</div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{fontSize:36}}>{company.logo}</div>
           <div>
             <div style={S.compNom}>{company.nom}</div>
             <div style={S.compSlogan}>"{company.slogan}"</div>
           </div>
         </div>
-        <div style={S.badge}>Niv. {company.niveau || 1}</div>
+        <div style={S.badge}>Niv. {company.niveau||1}</div>
       </div>
 
-      {/* ── Stats compagnie ── */}
-      <div style={S.statsRow}>
-        {[
-          { label: '🪙 Capital',      val: fmt(company.capital)     },
-          { label: '⭐ Prestige',     val: `${company.prestige} pts` },
-          { label: '⛴ En mer',       val: `${enMer}/${navires.length}` },
-          { label: '🗺 Voyages',      val: company.voyagesTotal     },
-        ].map(({ label, val }) => (
-          <div key={label} style={S.statBox}>
-            <div style={S.statVal}>{val}</div>
-            <div style={S.statLbl}>{label}</div>
-          </div>
-        ))}
+      {/* Stats */}
+      <div style={{display:'flex',background:T.parchment,borderBottom:`1px solid ${T.border}`}}>
+        <StatBox label="🪙 Capital"      val={fmt(company.capital)}                 color={T.gold}/>
+        <StatBox label="⭐ Prestige"     val={`${company.prestige} pts`}/>
+        <StatBox label="⛴ En mer"       val={`${enMer}/${navires.length}`}         color={T.blue}/>
+        <StatBox label="🗺 Voyages"      val={company.voyagesTotal}/>
       </div>
 
-      {/* ── Satisfaction globale ── */}
-      <div style={S.satisfRow}>
-        <span style={{ fontSize: 13, color: '#5d4e37' }}>😊 Satisfaction</span>
-        <span style={{ ...S.satisfScore, color: satisfColor(company.satisfaction) }}>
-          {satisfEmoji(company.satisfaction)} {company.satisfaction}/100
-        </span>
-      </div>
-      <div style={{ padding: '0 14px 10px' }}>
-        <Bar value={company.satisfaction} color={satisfColor(company.satisfaction)} />
+      {/* Satisfaction */}
+      <div style={{padding:'8px 14px',background:T.parchment,borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+          <span style={{fontSize:12,color:T.mid}}>😊 Satisfaction passagers</span>
+          <span style={{fontSize:12,fontWeight:700,color:satisfColor(company.satisfaction)}}>{satisfEmoji(company.satisfaction)} {company.satisfaction}/100</span>
+        </div>
+        <Bar value={company.satisfaction} color={satisfColor(company.satisfaction)}/>
       </div>
 
-      {/* ── Titre section flotte ── */}
+      {/* Feedback */}
+      {msg && (
+        <div style={{margin:'6px 12px',padding:'8px 12px',borderRadius:8,background:msg.ok?'rgba(39,174,96,0.12)':'rgba(192,57,43,0.12)',border:`1px solid ${msg.ok?T.green:T.red}`,color:msg.ok?T.green:T.red,fontSize:12,fontWeight:600,textAlign:'center'}}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Section titre */}
       <div style={S.sectionTitle}>⛴ Ma Flotte</div>
 
-      {/* ── Liste navires ── */}
+      {/* Liste navires */}
       <div style={S.list}>
-        {navires.length === 0 && (
-          <div style={S.noShip}>Aucun navire — visitez le Marché dans Discord pour en acheter un.</div>
-        )}
+        {navires.length===0 && <div style={S.noShip}>Aucun navire — achetez-en un dans le Marché ↓</div>}
         {navires.map(navire => {
-          const route  = gameData?.routes?.find(r => r.id === navire.routeActive);
-          const isSel  = selected === navire.uid;
-          const satPct = navire.satisfactionMoyenne || 70;
+          const route = gameData?.routes?.find(r=>r.id===navire.routeActive);
+          const isSel = selected===navire.uid;
+          const sat   = navire.satisfactionMoyenne||70;
           return (
-            <div
-              key={navire.uid}
-              style={{ ...S.card, ...(isSel ? S.cardSel : {}) }}
-              onClick={() => setSelected(isSel ? null : navire.uid)}
-            >
-              {/* En-tête carte navire */}
-              <div style={S.cardHeader}>
-                <div style={S.shipFlag}>{navire.flag || '🚢'}</div>
-                <div style={{ flex: 1 }}>
+            <div key={navire.uid} style={{...S.card,...(isSel?S.cardSel:{})}}>
+              {/* Ligne principale */}
+              <div style={S.cardTop} onClick={()=>setSelected(isSel?null:navire.uid)}>
+                <div style={{fontSize:26}}>{navire.flag||'🚢'}</div>
+                <div style={{flex:1}}>
                   <div style={S.shipNom}>{navire.nom}</div>
-                  <div style={S.shipRoute}>
-                    {route ? `🗺 ${route.label.slice(0, 28)}` : '⚪ Sans route assignée'}
+                  <div style={{fontSize:11,color:route?T.green:T.mid}}>
+                    {route?`🟢 ${route.label.slice(0,28)}`:'⚪ Sans route'}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 16 }}>{satisfEmoji(satPct)}</div>
-                  <div style={{ fontSize: 10, color: '#8b6914' }}>✈️ {navire.voyages}</div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:15}}>{satisfEmoji(sat)}</div>
+                  <div style={{fontSize:10,color:T.mid}}>✈️ {navire.voyages}</div>
                 </div>
               </div>
 
               {/* Détails dépliés */}
               {isSel && (
                 <div style={S.detail}>
-                  <div style={S.detailBar}>
-                    <span style={S.detailLbl}>😊 Satisfaction</span>
-                    <span style={{ ...S.detailVal, color: satisfColor(satPct) }}>{satPct.toFixed(0)}/100</span>
+                  {/* Bar satisfaction */}
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:11,color:T.mid}}>😊 Satisfaction</span>
+                    <span style={{fontSize:11,fontWeight:700,color:satisfColor(sat)}}>{sat.toFixed(0)}/100</span>
                   </div>
-                  <Bar value={satPct} color={satisfColor(satPct)} />
+                  <Bar value={sat} color={satisfColor(sat)}/>
 
-                  <div style={{ marginTop: 8 }} />
+                  {/* Stats */}
+                  <div style={{display:'flex',flexDirection:'column',gap:5,marginTop:10}}>
+                    {[
+                      ['💰 Revenus',   fmt(navire.revenusGeneres)],
+                      ['👥 Passagers', (navire.passagers||0).toLocaleString('fr-FR')],
+                      ['🔧 Upgrades',  `${(navire.upgrades||[]).length} installée${(navire.upgrades||[]).length>1?'s':''}`],
+                    ].map(([k,v])=>(
+                      <div key={k} style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                        <span style={{color:T.mid}}>{k}</span>
+                        <span style={{color:T.dark,fontWeight:700}}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
 
-                  {[
-                    ['💰 Revenus générés', fmt(navire.revenusGeneres)],
-                    ['👥 Passagers',       (navire.passagers || 0).toLocaleString('fr-FR')],
-                    ['🔧 Upgrades',        `${(navire.upgrades || []).length} installée${(navire.upgrades||[]).length > 1 ? 's' : ''}`],
-                    ...(navire.flag ? [['🏳 Pavillon', navire.flag]] : []),
-                  ].map(([k, v]) => (
-                    <div key={k} style={S.detailRow}>
-                      <span style={S.detailLbl}>{k}</span>
-                      <span style={S.detailVal}>{v}</span>
+                  {/* Actions rapides */}
+                  <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap'}}>
+                    <button style={S.actionBtn} onClick={()=>{setEditing('rename');setInputVal(navire.nom);}}>✏️ Renommer</button>
+                    <button style={S.actionBtn} onClick={()=>{setEditing('flag');setInputVal('');}}>🏳 Pavillon</button>
+                    <button style={{...S.actionBtn,color:T.red,borderColor:T.red}} onClick={()=>setEditing('sell')}>💰 Revendre</button>
+                  </div>
+
+                  {/* Formulaires inline */}
+                  {editing==='rename' && (
+                    <div style={S.editBox}>
+                      <input style={S.input} value={inputVal} onChange={e=>setInputVal(e.target.value)} placeholder="Nouveau nom..." maxLength={30}/>
+                      <button style={S.confirmBtn} disabled={loading||!inputVal.trim()} onClick={()=>doAction('renameShip',[navire.uid,inputVal.trim()])}>Confirmer</button>
                     </div>
-                  ))}
-                  <div style={S.detailHint}>Gérez ce navire via Discord →</div>
+                  )}
+                  {editing==='flag' && (
+                    <div style={S.editBox}>
+                      <div style={{fontSize:11,color:T.mid,marginBottom:6}}>Collez un drapeau emoji (ex: 🇫🇷 🇮🇹 🏴‍☠️)</div>
+                      <input style={S.input} value={inputVal} onChange={e=>setInputVal(e.target.value)} placeholder="🇫🇷" maxLength={8}/>
+                      <button style={S.confirmBtn} disabled={loading||!inputVal.trim()} onClick={()=>doAction('setFlag',[navire.uid,inputVal.trim()])}>Confirmer</button>
+                    </div>
+                  )}
+                  {editing==='sell' && (
+                    <div style={{...S.editBox,background:'rgba(192,57,43,0.08)',borderColor:T.red}}>
+                      <div style={{fontSize:12,color:T.red,fontWeight:600,marginBottom:8}}>⚠️ Revendre {navire.nom} ?<br/><span style={{fontWeight:400,fontSize:11}}>Vous récupérez ~60% du prix d'achat.</span></div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button style={{...S.confirmBtn,background:T.red}} disabled={loading} onClick={()=>doAction('sellShip',[navire.uid])}>Confirmer la vente</button>
+                        <button style={{...S.actionBtn}} onClick={()=>setEditing(null)}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -141,17 +178,16 @@ export default function FleetPanel({ company, gameData }) {
         })}
       </div>
 
-      {/* ── Pied de page ── */}
+      {/* Footer bilan */}
       <div style={S.footer}>
         {[
           ['🗺 Voyages totaux',        company.voyagesTotal],
-          ['👥 Passagers transportés', (company.passagersTotal || 0).toLocaleString('fr-FR')],
+          ['👥 Passagers transportés', (company.passagersTotal||0).toLocaleString('fr-FR')],
           ['🪙 CA Total',              fmt(company.revenusTotal)],
-          ['💸 Dépenses totales',      fmt(company.depensesTotal)],
-        ].map(([k, v]) => (
-          <div key={k} style={S.footerRow}>
-            <span style={{ color: '#6b4c1a' }}>{k}</span>
-            <span style={{ fontWeight: 700, color: '#2c1a06' }}>{v}</span>
+        ].map(([k,v])=>(
+          <div key={k} style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+            <span style={{color:T.mid}}>{k}</span>
+            <span style={{fontWeight:700,color:T.dark}}>{v}</span>
           </div>
         ))}
       </div>
@@ -159,52 +195,26 @@ export default function FleetPanel({ company, gameData }) {
   );
 }
 
-const parchment = 'rgba(255,248,220,0.97)';
-const border    = 'rgba(139,105,20,0.35)';
-const textDark  = '#2c1a06';
-const textMid   = '#5d4e37';
-const fontFamily= 'Georgia, serif';
-
 const S = {
-  root      : { display:'flex', flexDirection:'column', height:'100%', overflowY:'auto', background:'#f5e6c8', fontFamily },
-  empty     : { display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:14, color:textMid, fontFamily, background:'#f5e6c8' },
-  emptyTitle: { fontSize:20, fontWeight:700, color:textDark },
-  emptySub  : { fontSize:13, textAlign:'center', maxWidth:260, lineHeight:1.5 },
-
-  header    : { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:parchment, borderBottom:`2px solid ${border}` },
-  headerLeft: { display:'flex', alignItems:'center', gap:12 },
-  compLogo  : { fontSize:36 },
-  compNom   : { fontSize:17, fontWeight:700, color:textDark },
-  compSlogan: { fontSize:11, color:textMid, fontStyle:'italic', marginTop:2 },
-  badge     : { background:'rgba(139,105,20,0.15)', border:`1px solid ${border}`, borderRadius:20, padding:'4px 10px', fontSize:12, fontWeight:700, color:'#8b6914' },
-
-  statsRow  : { display:'flex', background:parchment, borderBottom:`1px solid ${border}` },
-  statBox   : { flex:1, display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 4px', borderRight:`1px solid ${border}` },
-  statVal   : { fontSize:14, fontWeight:700, color:textDark },
-  statLbl   : { fontSize:9, color:textMid, marginTop:3, textAlign:'center' },
-
-  satisfRow : { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 14px 4px', background:parchment },
-  satisfScore:{ fontSize:13, fontWeight:700 },
-
-  sectionTitle:{ padding:'10px 14px 6px', fontSize:12, fontWeight:700, color:'#8b6914', textTransform:'uppercase', letterSpacing:1, background:parchment, borderBottom:`1px solid ${border}`, borderTop:`1px solid ${border}` },
-
-  list      : { flex:1, padding:'10px 12px', display:'flex', flexDirection:'column', gap:8, background:'#f5e6c8' },
-  noShip    : { textAlign:'center', color:textMid, fontSize:13, padding:24, lineHeight:1.6 },
-
-  card      : { background:parchment, borderRadius:10, padding:'12px 14px', border:`1px solid ${border}`, cursor:'pointer', transition:'all 0.2s', boxShadow:'0 2px 6px rgba(0,0,0,0.1)' },
-  cardSel   : { background:'rgba(255,240,180,0.99)', border:`2px solid rgba(139,105,20,0.6)`, boxShadow:'0 4px 12px rgba(0,0,0,0.15)' },
-  cardHeader: { display:'flex', alignItems:'center', gap:10 },
-  shipFlag  : { fontSize:26, flexShrink:0 },
-  shipNom   : { fontSize:14, fontWeight:700, color:textDark },
-  shipRoute : { fontSize:11, color:textMid, marginTop:3 },
-
-  detail    : { marginTop:12, paddingTop:10, borderTop:`1px solid ${border}` },
-  detailBar : { display:'flex', justifyContent:'space-between', marginBottom:4 },
-  detailRow : { display:'flex', justifyContent:'space-between', marginTop:6 },
-  detailLbl : { fontSize:11, color:textMid },
-  detailVal : { fontSize:11, fontWeight:700, color:textDark },
-  detailHint: { marginTop:10, textAlign:'center', fontSize:10, color:'rgba(139,105,20,0.6)', fontStyle:'italic' },
-
-  footer    : { padding:'12px 16px', background:parchment, borderTop:`2px solid ${border}`, display:'flex', flexDirection:'column', gap:5 },
-  footerRow : { display:'flex', justifyContent:'space-between', fontSize:11 },
+  root      : {display:'flex',flexDirection:'column',height:'100%',overflowY:'auto',background:T.bg,fontFamily:T.ff},
+  empty     : {display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14,color:T.mid,fontFamily:T.ff,background:T.bg},
+  emptyTitle: {fontSize:20,fontWeight:700,color:T.dark},
+  emptySub  : {fontSize:13,textAlign:'center',maxWidth:260,lineHeight:1.5},
+  header    : {display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',background:T.parchment,borderBottom:`2px solid ${T.border}`},
+  compNom   : {fontSize:16,fontWeight:700,color:T.dark},
+  compSlogan: {fontSize:11,color:T.mid,fontStyle:'italic',marginTop:2},
+  badge     : {background:'rgba(139,105,20,0.15)',border:`1px solid ${T.border}`,borderRadius:20,padding:'4px 10px',fontSize:12,fontWeight:700,color:T.gold},
+  sectionTitle:{padding:'8px 14px',fontSize:11,fontWeight:700,color:T.gold,textTransform:'uppercase',letterSpacing:1,background:T.parchment,borderBottom:`1px solid ${T.border}`,borderTop:`1px solid ${T.border}`},
+  list      : {flex:1,padding:'10px 12px',display:'flex',flexDirection:'column',gap:8,background:T.bg},
+  noShip    : {textAlign:'center',color:T.mid,fontSize:13,padding:24,lineHeight:1.6},
+  card      : {background:T.parchment,borderRadius:10,padding:'12px 14px',border:`1px solid ${T.border}`,cursor:'pointer',boxShadow:T.shadowSm},
+  cardSel   : {border:`2px solid ${T.gold}`,background:'rgba(255,240,180,0.99)'},
+  cardTop   : {display:'flex',alignItems:'center',gap:10},
+  shipNom   : {fontSize:14,fontWeight:700,color:T.dark},
+  detail    : {marginTop:12,paddingTop:10,borderTop:`1px solid ${T.border}`},
+  actionBtn : {padding:'5px 10px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',color:T.dark,fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:T.ff},
+  editBox   : {marginTop:10,padding:'10px',background:'rgba(139,105,20,0.06)',borderRadius:8,border:`1px solid ${T.border}`},
+  input     : {width:'100%',padding:'7px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.parchment,color:T.dark,fontSize:12,fontFamily:T.ff,outline:'none',boxSizing:'border-box',marginBottom:7},
+  confirmBtn: {padding:'7px 14px',borderRadius:8,background:T.gold,border:'none',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:T.ff},
+  footer    : {padding:'10px 16px',background:T.parchment,borderTop:`2px solid ${T.border}`,display:'flex',flexDirection:'column',gap:5},
 };
