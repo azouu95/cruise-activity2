@@ -47,7 +47,7 @@ function FoundCompany({ userId, onDone }) {
         <input style={{width:'100%',padding:'9px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:'rgba(255,248,220,0.8)',color:T.dark,fontSize:13,fontFamily:T.ff,outline:'none',boxSizing:'border-box',marginBottom:10}} value={nom} onChange={e=>s1(e.target.value)} placeholder="Nom de la compagnie *" maxLength={30}/>
         <input style={{width:'100%',padding:'9px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:'rgba(255,248,220,0.8)',color:T.dark,fontSize:13,fontFamily:T.ff,outline:'none',boxSizing:'border-box',marginBottom:14}} value={slogan} onChange={e=>s3(e.target.value)} placeholder="Slogan (optionnel)" maxLength={50}/>
         {error&&<div style={{color:T.red,fontSize:12,textAlign:'center',marginBottom:8,fontWeight:600}}>{error}</div>}
-        <button style={{width:'100%',padding:'13px',borderRadius:12,background:T.gold,border:'none',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:T.ff,opacity:loading?0.6:1}} onClick={go} disabled={loading}>{loading?'Création...': `${logo} Fonder ${nom||'ma compagnie'}`}</button>
+        <button style={{width:'100%',padding:'13px',borderRadius:12,background:T.gold,border:'none',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:T.ff,opacity:loading?0.6:1}} onClick={go} disabled={loading}>{loading?'Création...':`${logo} Fonder ${nom||'ma compagnie'}`}</button>
       </div>
     </div>
   );
@@ -75,17 +75,18 @@ function buildLocalCatalogue(){
 }
 
 export default function App(){
-  const [ready,setReady]=useState(false);
-  const [auth,setAuth]=useState(null);
-  const [gameData,setGameData]=useState(null);
-  const [myCompany,setMyCompany]=useState(null);
-  const [activeTab,setActiveTab]=useState('map');
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState(null);
-  const [showMore,setShowMore]=useState(false);
-  const [showFound,setShowFound]=useState(false);
-  const [userId,setUserId]=useState(null);
+  const [ready,    setReady]    = useState(false);
+  const [auth,     setAuth]     = useState(null);
+  const [gameData, setGameData] = useState(null);
+  const [myCompany,setMyCompany]= useState(null);
+  const [activeTab,setActiveTab]= useState('map');
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [showMore, setShowMore] = useState(false);
+  const [showFound,setShowFound]= useState(false);
+  const [userId,   setUserId]   = useState(null);
 
+  // ── Init Discord SDK ──────────────────────────────────────────────────────
   useEffect(()=>{
     async function init(){
       try{
@@ -106,33 +107,29 @@ export default function App(){
     init();
   },[]);
 
+  // ── Chargement données ────────────────────────────────────────────────────
   const load=useCallback(async(uid,silent=false)=>{
     try{
       if(!silent) setLoading(true);
       const data=await fetchGameState();
       if(!data.catalogue_navires) data.catalogue_navires=buildLocalCatalogue();
-      // Mise à jour sans flicker : comparer timestamp
-      setGameData(prev=>{
-        if(prev?.timestamp===data.timestamp) return prev;
-        return data;
-      });
-      setMyCompany(prev=>{
-        const next=data.companies?.[uid]||null;
-        // Éviter re-render si capital/données identiques
-        if(JSON.stringify(prev)===JSON.stringify(next)) return prev;
-        return next;
-      });
-    }catch(e){if(!silent) setError('Bot hors ligne');}
-    finally{if(!silent) setLoading(false);}
+      setGameData(data);
+      setMyCompany(data.companies?.[uid]||null);
+    }catch(e){
+      if(!silent) setError('Bot hors ligne — vérifiez Katabump');
+    }finally{
+      if(!silent) setLoading(false);
+    }
   },[]);
 
+  // Refresh silencieux toutes les 60s
   useEffect(()=>{
     if(!ready||!userId) return;
-    const iv=setInterval(()=>load(userId,true),60000); // 60s silencieux
+    const iv=setInterval(()=>load(userId,true),60000);
     return()=>clearInterval(iv);
   },[ready,userId,load]);
 
-  const onRefresh=useCallback(()=>{if(userId)load(userId);},[userId,load]);
+  const onRefresh=useCallback(()=>{ if(userId) load(userId,true); },[userId,load]);
 
   const handleTab=(id)=>{
     if(id==='more'){setShowMore(v=>!v);return;}
@@ -141,6 +138,7 @@ export default function App(){
 
   const fmt1M=(n)=>n>=1e9?`${(n/1e9).toFixed(1)}Md`:n>=1e6?`${(n/1e6).toFixed(1)}M`:n>=1e3?`${Math.round(n/1000)}K`:`${n}`;
 
+  // ── Splash / Erreur ────────────────────────────────────────────────────────
   if(!ready||loading) return(
     <div style={{width:'100vw',height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.bg}}>
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,padding:32,background:T.parchment,border:`3px solid ${T.gold}`,borderRadius:20,boxShadow:T.shadow}}>
@@ -164,36 +162,48 @@ export default function App(){
     </div>
   );
 
+  // ── Layout principal ───────────────────────────────────────────────────────
   return(
     <div style={{width:'100vw',height:'100vh',display:'flex',flexDirection:'column',background:T.bg,fontFamily:T.ff,overflow:'hidden'}}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',background:T.parchment,borderBottom:`2px solid ${T.border}`,height:52,flexShrink:0,boxShadow:T.shadowSm}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:22}}>⚓</span>
           <div>
-            <div style={{fontSize:13,fontWeight:700,color:T.dark}}>{myCompany?`${myCompany.logo} ${myCompany.nom}`:'Empire des Mers'}</div>
+            <div style={{fontSize:14,fontWeight:700,color:T.dark}}>
+              {myCompany?`${myCompany.logo} ${myCompany.nom}`:'Empire des Mers'}
+            </div>
             {myCompany&&<div style={{fontSize:9,color:T.mid}}>Niv.{myCompany.niveau||1} · {myCompany.prestige} prestige · {myCompany.satisfaction}/100 😊</div>}
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {myCompany&&<div style={{background:'rgba(139,105,20,0.12)',border:`1px solid ${T.border}`,borderRadius:20,padding:'4px 10px',fontSize:12,fontWeight:700,color:T.gold}}>💳 {fmt1M(myCompany.capital)} 🪙</div>}
-          {!myCompany&&<button style={{padding:'6px 14px',borderRadius:20,background:T.gold,border:'none',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:T.ff}} onClick={()=>setShowFound(true)}>🏢 Fonder</button>}
+          {myCompany&&(
+            <div style={{background:'rgba(139,105,20,0.12)',border:`1px solid ${T.border}`,borderRadius:20,padding:'4px 10px',fontSize:12,fontWeight:700,color:T.gold}}>
+              💳 {fmt1M(myCompany.capital)} 🪙
+            </div>
+          )}
+          {!myCompany&&(
+            <button style={{padding:'6px 14px',borderRadius:20,background:T.gold,border:'none',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:T.ff}} onClick={()=>setShowFound(true)}>
+              🏢 Fonder ma compagnie
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Contenu */}
+      {/* ── Contenu ── */}
       <div style={{flex:1,overflow:'hidden',position:'relative'}}>
-        {activeTab==='map'      &&<GameMap       gameData={gameData} myCompany={myCompany}/>}
-        {activeTab==='fleet'    &&<FleetPanel    company={myCompany} gameData={gameData} userId={userId} onRefresh={onRefresh}/>}
-        {activeTab==='daily'    &&<DailyPanel    company={myCompany} userId={userId} onRefresh={onRefresh}/>}
-        {activeTab==='rank'     &&<Leaderboard   gameData={gameData} myCompany={myCompany}/>}
-        {activeTab==='shop'     &&<ShopPanel     gameData={gameData} company={myCompany} userId={userId} onRefresh={onRefresh}/>}
-        {activeTab==='routes'   &&<RoutesPanel   gameData={gameData} company={myCompany} userId={userId} onRefresh={onRefresh}/>}
-        {activeTab==='upgrades' &&<UpgradesPanel company={myCompany} userId={userId} onRefresh={onRefresh}/>}
-        {activeTab==='finances' &&<FinancesPanel company={myCompany} gameData={gameData}/>}
+        {activeTab==='map'      && <GameMap       gameData={gameData} myCompany={myCompany}/>}
+        {activeTab==='fleet'    && <FleetPanel    company={myCompany} gameData={gameData} userId={userId} onRefresh={onRefresh}/>}
+        {activeTab==='daily'    && <DailyPanel    company={myCompany} userId={userId} onRefresh={onRefresh}/>}
+        {activeTab==='rank'     && <Leaderboard   gameData={gameData} myCompany={myCompany}/>}
+        {activeTab==='shop'     && <ShopPanel     gameData={gameData} company={myCompany} userId={userId} onRefresh={onRefresh}/>}
+        {activeTab==='routes'   && <RoutesPanel   gameData={gameData} company={myCompany} userId={userId} onRefresh={onRefresh}/>}
+        {activeTab==='upgrades' && <UpgradesPanel company={myCompany} gameData={gameData} userId={userId} onRefresh={onRefresh}/>}
+        {activeTab==='finances' && <FinancesPanel company={myCompany} gameData={gameData}/>}
       </div>
 
-      {/* Drawer Plus */}
+      {/* ── Drawer Plus ── */}
       {showMore&&(
         <div style={{position:'absolute',bottom:62,left:0,right:0,background:T.parchment,borderTop:`2px solid ${T.border}`,display:'flex',justifyContent:'space-around',padding:'12px 8px',zIndex:100,boxShadow:'0 -4px 20px rgba(0,0,0,0.2)'}}>
           {MORE_ITEMS.map(item=>(
@@ -205,21 +215,23 @@ export default function App(){
         </div>
       )}
 
-      {/* Tab bar */}
-      <div style={{display:'flex',background:T.parchment,borderTop:`2px solid ${T.border}`,height:60,flexShrink:0,position:'relative',zIndex:50}}>
+      {/* ── Tab Bar ── */}
+      <div style={{display:'flex',background:T.parchment,borderTop:`2px solid ${T.border}`,height:62,flexShrink:0,position:'relative',zIndex:50,boxShadow:'0 -2px 8px rgba(0,0,0,0.1)'}}>
         {BOTTOM_TABS.map(tab=>{
-          const isActive=tab.id==='more'?showMore:activeTab===tab.id;
+          const isActive = tab.id==='more' ? showMore : activeTab===tab.id;
           return(
-            <button key={tab.id} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'none',border:'none',color:isActive?T.gold:'rgba(93,78,55,0.5)',cursor:'pointer',gap:2,fontFamily:T.ff,borderRight:`1px solid ${T.border}`,borderTop:isActive?`3px solid ${T.gold}`:'3px solid transparent',position:'relative',transition:'all 0.2s',fontSize:10}} onClick={()=>handleTab(tab.id)}>
+            <button key={tab.id} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'none',border:'none',color:isActive?T.gold:`rgba(93,78,55,0.5)`,cursor:'pointer',gap:3,fontFamily:T.ff,borderRight:`1px solid ${T.border}`,borderTop:isActive?`3px solid ${T.gold}`:'3px solid transparent',position:'relative',transition:'all 0.2s',fontSize:10}} onClick={()=>handleTab(tab.id)}>
               <span style={{fontSize:20}}>{tab.emoji}</span>
               {tab.label}
-              {tab.id==='daily'&&<div style={{position:'absolute',top:8,right:'50%',transform:'translateX(10px)',width:8,height:8,borderRadius:'50%',background:'#ef4444',border:'2px solid '+T.parchment}}/>}
+              {tab.id==='daily'&&!myCompany?.dailyDone&&(
+                <div style={{position:'absolute',top:8,right:'50%',transform:'translateX(10px)',width:8,height:8,borderRadius:'50%',background:'#ef4444',border:`2px solid ${T.parchment}`}}/>
+              )}
             </button>
           );
         })}
       </div>
 
-      {showFound&&<FoundCompany userId={userId} onDone={()=>{setShowFound(false);load(userId);}}/>}
+      {showFound && <FoundCompany userId={userId} onDone={()=>{setShowFound(false);load(userId);}}/>}
 
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
