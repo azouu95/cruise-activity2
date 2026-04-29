@@ -111,7 +111,7 @@ export default function ShopPanel({ gameData, company, userId, onRefresh }) {
                     <>
                       <input style={S.input} placeholder={`Nom du navire (défaut : ${ship.nom})`} value={nom} onChange={e=>setNom(e.target.value)} maxLength={30}/>
                       <button style={{...S.buyBtn,opacity:buying?0.6:1}} onClick={()=>handleBuy(ship)} disabled={buying}>
-                        {buying?'Achat en cours...`:`⛴ Acheter — ${fmt(ship.prix)}`}
+                        {buying ? 'Achat en cours...' : `⛴ Acheter — ${fmt(ship.prix)}`}
                       </button>
                     </>
                   )}
