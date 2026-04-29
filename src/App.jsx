@@ -136,7 +136,7 @@ export default function App(){
     <div style={{width:'100vw',height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.bg}}>
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,padding:32,background:T.parchment,border:`3px solid ${T.gold}`,borderRadius:20,boxShadow:T.shadow}}>
         <div style={{fontSize:52}}>⚓</div>
-        <div style={{fontSize:20,fontWeight:700,color:T.dark,fontFamily:T.ff}}>Armateur de Croisière</div>
+        <div style={{fontSize:20,fontWeight:700,color:T.dark,fontFamily:T.ff}}>Empire des Mers</div>
         <div style={{fontSize:13,color:T.mid,fontFamily:T.ff}}>{!ready?'Connexion à Discord...':'Chargement...'}</div>
         <div style={{width:36,height:36,borderRadius:'50%',border:`3px solid ${T.border}`,borderTopColor:T.gold,animation:'spin 0.8s linear infinite'}}/>
       </div>
@@ -162,7 +162,7 @@ export default function App(){
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:22}}>⚓</span>
           <div>
-            <div style={{fontSize:13,fontWeight:700,color:T.dark}}>{myCompany?`${myCompany.logo} ${myCompany.nom}`:'Armateur de Croisière'}</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.dark}}>{myCompany?`${myCompany.logo} ${myCompany.nom}`:'Empire des Mers'}</div>
             {myCompany&&<div style={{fontSize:9,color:T.mid}}>Niv.{myCompany.niveau||1} · {myCompany.prestige} prestige · {myCompany.satisfaction}/100 😊</div>}
           </div>
         </div>
